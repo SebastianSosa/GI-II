@@ -1,12 +1,9 @@
 library(ggplot2)
 library(ggpubr)
-library(igraph)
-library(sna)
 library(ANTs)
-### BASIC SIMULATION FUNCTIONS
+### function to create a network (matrix n x n) from data collection (obs) and focal id using simple ratio index (sri)
 ############################################################################################################
-######### Modification  1 : Global index approach
-### function to create a network (matrix n x n) from data collection (obs) and focal id using simple ratio index (sri) 
+######### Modification  1 (conceptual): Global index approach
 make_network <- function(obs, focal.id) {
   N <- ncol(obs)
   network <- matrix(0,nrow=N, ncol=N)
@@ -14,8 +11,8 @@ make_network <- function(obs, focal.id) {
     for (j in (i+1):N) {
       xab <- sum(obs[which(focal.id %in% c(i,j)),c(i,j)]>0)
       ############################################################################################################
-      ######### Modification  1 : Computing SRI where xab is the association between a and b, 
-      #########                     ya is the number of observations of a without b, and 
+      ######### Modification  1.1 : Computing SRI where xab is the association between a and b,
+      #########                     ya is the number of observations of a without b, and
       #########                     yb is the number of observations of b without a
       fa <- sum(focal.id == i)
       fb <- sum(focal.id == j)
@@ -24,7 +21,7 @@ make_network <- function(obs, focal.id) {
       if(yb < 0){yb = 0}
       if(ya < 0){ya = 0}
       sri <- ((xab) /(xab + ya + yb ))
-      
+
       if(!is.nan(sri)){
         network[i,j] <- sri
         network[j,i] <- sri
@@ -36,6 +33,7 @@ make_network <- function(obs, focal.id) {
   }
   return(network)
 }
+
 make_network.corrected <- function(obs, focal.id) {
   N <- ncol(obs)
   network <- matrix(0,nrow=N, ncol=N)
@@ -43,8 +41,8 @@ make_network.corrected <- function(obs, focal.id) {
     for (j in (i+1):N) {
       xab <- sum(obs[which(focal.id %in% c(i,j)),c(i,j)]>0)
       ############################################################################################################
-      ######### Modification  1 : Computing SRI where xab is the association between a and b, 
-      #########                     ya is the number of observations of a without b, and 
+      ######### Modification  1.2 : Computing SRI where xab is the association between a and b,
+      #########                     ya is the number of observations of a without b, and
       #########                     yb is the number of observations of b without a
       fa <- sum(focal.id == i)
       fb <- sum(focal.id == j)
@@ -53,7 +51,7 @@ make_network.corrected <- function(obs, focal.id) {
       if(yb < 0){yb = 0}
       if(ya < 0){ya = 0}
       sri <- ((xab) /(xab + ya + yb )) / (fa + fb)
-      
+
       if(!is.nan(sri)){
         network[i,j] <- sri
         network[j,i] <- sri
@@ -65,6 +63,8 @@ make_network.corrected <- function(obs, focal.id) {
   }
   return(network)
 }
+############################################################################################################
+
 ### function to generate pre-network permutations (swaps of individuals between focals)
 # No modifications
 rand_network2 <- function(obs.p, focal.id, n.perm,n_focals) {
@@ -76,16 +76,16 @@ rand_network2 <- function(obs.p, focal.id, n.perm,n_focals) {
       o <- 1:n_focals
       a <- sample(o,1)
       b <- sample(o[-a],1)
-      
+
       # check if these are different individuals and they have associates
       if ((focal.id[a] != focal.id[b]) & (sum(obs.p[a,])>0) & (sum(obs.p[b,])>0)) {
         # next select two associates to swap
         d <- sample(which(obs.p[a,] > 0),1)
         e <- sample(which(obs.p[b,] > 0),1)
-        
+
         # check they do not occur in the other focal
         if ((obs.p[a,e] == 0) & obs.p[b,d] == 0) {
-          
+
           # now check we have 4 distinct individuals, otherwise repeat this process
           if (!(d %in% c(focal.id[a], focal.id[b], e)) & !(e %in% c(focal.id[a], focal.id[b], d))) {
             break;
@@ -93,7 +93,7 @@ rand_network2 <- function(obs.p, focal.id, n.perm,n_focals) {
         }
       }
     }
-    
+
     # swap individuals
     obs.p[a,d] <- 0
     obs.p[b,d] <- 1
@@ -124,13 +124,12 @@ rand_vect <- function(N, M, sd = 1, pos.only = TRUE) {
   vec
 }
 
-### MAIN SIMULATION FUNCTION ###
-### Arguments ###
-# GS --> numeric argument indicating group size
-# ObsBia --> numeric argument indicating the degree of observation bias [0.5-1.0]
-# FemPhenotypeBias --> boolean argument indicating whether a phenotype bias is present among females
-# nfocals --> numeric argument indicating number of focal samples
-# N.perm --> numeric argument indicating number of permutations 
+### MAIN SIMULATION FUNCTION#########
+#' @param  GS numeric argument indicating group size
+#' @param  ObsBia numeric argument indicating the degree of observation bias [0.5-1.0]
+#' @param  FemPhenotypeBias boolean argument indicating whether a phenotype bias is present among females
+#' @param  nfocals numeric argument indicating number of focal samples
+#' @param  N.perm numeric argument indicating number of permutations
 Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
 {
   # Set parameters
@@ -148,7 +147,7 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   obs <- matrix(0,nrow=n_focals,ncol=N)
   ## set number of observations of an individual in a group per individual
   ids$OBS <- rand_vect(N,sum(group_size),pos.only=TRUE)
-  ## Variables to Allocate individuals to groups, 
+  ## Variables to Allocate individuals to groups,
   GroupID<-c(1:n_focals)
   group_size.tmp <- group_size
   # IF Fem phenotype is stronger than males, start with males so that they end up in smaller groups
@@ -156,15 +155,15 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   {
     which.males <- which(ids$SEX=="M")
     which.females <- which(ids$SEX=="F")
-    for (i in which.males) 
+    for (i in which.males)
     {
       g <- sample(GroupID[which(group_size.tmp>0)],ids$OBS[i])
       group_size.tmp[g] <- group_size.tmp[g]-1
       obs[g,i] <- 1
     }
-    for (i in which.females) 
+    for (i in which.females)
     {
-      if ((sum(group_size.tmp>0) < ids$OBS[i])) 
+      if ((sum(group_size.tmp>0) < ids$OBS[i]))
       {
         Needed<-ids$OBS[i]-(sum(group_size.tmp>0))
         group.tmp<-group_size
@@ -172,7 +171,7 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
         BiggestGroups<-sort(group.tmp,decreasing = T,index.return=T)$ix
         ExtraGroups<-BiggestGroups[1:Needed]
         g<-c(GroupID[which(group_size.tmp>0)],ExtraGroups)
-      }else 
+      }else
       {
         g<-sample(GroupID[which(group_size.tmp>0)],ids$OBS[i])
       }
@@ -182,42 +181,42 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   }else # IF Fem phenotype is equal to males, allocate indivdiuals to groups at random
   {
     Inds<-c(1:GS)
-    for (. in 1:GS) 
+    for (. in 1:GS)
     {
       id<-Inds[1]
       if(length(Inds)>1){id<-sample(Inds,1)}
       Inds<-Inds[-which(Inds==id)]
-      if ((sum(group_size.tmp>0) < ids$OBS[id])) 
+      if ((sum(group_size.tmp>0) < ids$OBS[id]))
       {
         Needed<-ids$OBS[id]-(sum(group_size.tmp>0))
         Fullgroups<-which(group_size.tmp==0)
-        ExtraGroups<-sample(Fullgroups,Needed,replace=F) 
+        ExtraGroups<-sample(Fullgroups,Needed,replace=F)
         g<-c(GroupID[which(group_size.tmp>0)],ExtraGroups)
-      }else 
+      }else
       {
         g<-sample(GroupID[which(group_size.tmp>0)],ids$OBS[id])
       }
       group_size.tmp[g] <- group_size.tmp[g]-1
       obs[g,id] <- 1
     }
-    
+
   }
   # Select a focal individual from each group
   focal.id <- apply(obs,1,function(x) { sample(which(x==1),1)})
-  
+
   # Now remove cases where individuals occur in a group for which they are focal
   obs[cbind(1:n_focals,focal.id)] <- 0
-  
+
   ## NOW DO NETWORK ANALYSIS ON THESE DATA
   # Calculate network
   Net.Ori <- make_network(obs,focal.id)
   Net.Ori.corrected <- make_network.corrected(obs,focal.id)
-  
+
   # Remove some observations according to the degre of observation bias ObsBias
   # Generate probability of being observed (males=1,females=ObsBias)
   ids$OBS_PROB <- ObsBias
   ids$OBS_PROB[which(ids$SEX=="M")] <- 1
-  
+
   # Remove observations from GBI
   obs.Bias <- obs
   for (i in 1:N) {
@@ -226,8 +225,8 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   # Calculate new network
   Net.Bias <- make_network(obs.Bias,focal.id)
   Net.Biais.corrected <- make_network.corrected(obs.Bias,focal.id)
-  
-  
+
+
   # Calculate Strength
   ids$DEGREE <- rowSums(Net.Ori)
   ids$DEGREE.Corrected <- rowSums(Net.Ori)
@@ -247,27 +246,27 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   p4 = ggplot(ids, aes(x = SEX, y = DEGREE.Bias.Corrected, color = SEX))+geom_text(label = ids$ID)+ggtitle("Corrected relationship between strength and sex")
   p5 = ggplot(ids, aes(x = DEGREE, y = DEGREE.Bias, color = SEX))+geom_text(label = ids$ID)+ggtitle("Correlation between true strength and biased")
   p6 = ggplot(ids, aes(x = DEGREE.Corrected, y = DEGREE.Bias.Corrected, color = SEX))+geom_text(label = ids$ID)+ggtitle("Correlation between true strength and corrected")
-  
+
   print(ggarrange(p1, p2, p3, p4, p5, p6,  ncol = 3, nrow = 2, common.legend = T))
 
   ############################################################################################################
-  ######### Modification  2 : Compute degree and eigenvector
+  ######### Modification  2 (extension): Compute degree and eigenvector
   ids$alters <- met.degree(Net.Ori)
   alters.bias <- met.degree(Net.Biais.corrected)
   ids$alters.Bias <- (alters.bias)/ obs.per.ind.Bias
   if(any(is.infinite(ids$alters.Bias))){ids$alters.Bias[which(is.infinite(ids$alters.Bias))] = NA}
-  
+
 
   ids$DEGREE.Bias =  ((ids$DEGREE.Bias.Corrected ))
   print(summary(lm(DEGREE.Bias~SEX,data=ids)))
 
-  
+
   ids$eigen <- met.eigen(Net.Ori)
   ids$eigen.Bias <- ((met.eigen(Net.Biais.corrected)))
 
   ############################################################################################################
-  ######### Modification 3 : Running simulations for degree, eigenvector to
-  
+  ######### Modification 3 (extension):: Running simulations for degree, eigenvector to
+
   # Calculate effects
   coef.Ori <- coefficients(lm(DEGREE~SEX,data=ids))[2]
   coef.Bias <- coefficients(lm(DEGREE.Bias~SEX,data=ids))[2]
@@ -280,36 +279,36 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   # Create random networks with pre-network permutations
   n.perm <- N.Perm
   networks_Perm <- rand_network2(obs.Bias, focal.id, n.perm,n_focals)
-  
+
   # Calculate degree distribution for each network
-  deg_Perm <- apply(networks_Perm,1,function(x) { 
+  deg_Perm <- apply(networks_Perm,1,function(x) {
     r = rowSums(x)
     if(any(is.infinite(r))){r[which(is.infinite(r))] = NA}
     r
   })
-  
-  eigen_Perm <- apply(networks_Perm,1,function(x) { 
+
+  eigen_Perm <- apply(networks_Perm,1,function(x) {
     r <- met.eigen(x)
     if(any(is.infinite(r))){r[which(is.infinite(r))] = NA}
     r
   })
-  
-  alters_Perm <- apply(networks_Perm,1,function(x, obs.per.ind.Bias) { 
+
+  alters_Perm <- apply(networks_Perm,1,function(x, obs.per.ind.Bias) {
     r <- met.degree(x)/obs.per.ind.Bias
     if(any(is.infinite(r))){r[which(is.infinite(r))] = NA}
     r
   }, obs.per.ind.Bias = obs.per.ind.Bias)
-  
+
   # Get coefficients for each randomisation
   coefs_Perm <- apply(deg_Perm,2,function(x) { coefficients(lm(x~SEX,data=ids))[2] })
-  
+
   coefs_eigen_Perm <- apply(eigen_Perm,2,function(x) { coefficients(lm(x~SEX,data=ids))[2] })
-  
+
   coefs_alters_Perm <- apply(alters_Perm,2,function(x) { coefficients(lm(x~SEX,data=ids))[2] })
-  
+
   ############################################################################################################
-  ######### Modification  4 : Changing node permutation approach (just sample vector in data frames)
-  
+  ######### Modification  4 (practical): Changing node permutation approach (just sample vector in data frames)
+
   ## Create random networks with Node permutations
   #deg_Perm.Nodes <- matrix(0,nrow=N,ncol=N.Perm)
   #coefs.Perm_Nodes <- rep(0,N.Perm)
@@ -328,24 +327,24 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   }
   #if(sum(coef.Bias>coefs.Perm_Nodes) / n.perm > 0.05){stop()}
   ############################################################################################################
-  ######### Modification  6 : Returning only p-values
-  Result <- data.frame("Strength pre-network" = sum(coef.Bias>coefs_Perm) / n.perm, 
+  ######### Modification  5 : Returning only p-values
+  Result <- data.frame("Strength pre-network" = sum(coef.Bias>coefs_Perm) / n.perm,
                        "Strength network" = sum(coef.Bias>coefs.Perm_Nodes) / n.perm,
                        "Strength parametric" = summary(lm(DEGREE.Bias~SEX,data=ids))$coefficients[2,4],
-                       "Eigen pre-network" = sum(coef.eigen.Bias>coefs_eigen_Perm) / n.perm, 
+                       "Eigen pre-network" = sum(coef.eigen.Bias>coefs_eigen_Perm) / n.perm,
                        "Eigen network" = sum(coef.eigen.Bias>coefs.eigen.Perm_Nodes) / n.perm,
                        "Eigen parametric" = summary(lm(eigen.Bias~SEX,data=ids))$coefficients[2,4],
                        "Alters pre-network" = sum(coef.alters.Bias>coefs_alters_Perm) / n.perm,
                        "Alters network" = sum(coef.alters.Bias>coefs.alters.Perm_Nodes) / n.perm,
                        "Alters parametric" = summary(lm(alters.Bias~SEX,data=ids))$coefficients[2,4])
-  
+
   Result
 }
 
 ##################################
 # Latin hypercube sampling
 ###################
-## Simulations with biases of observation
+## Simulations with biases of observation-------------------
 library(lhs)
 NumCombinations<-500
 VariablesToSample<-4
@@ -372,7 +371,7 @@ for (a in a:length(FemPhenotypeBias))
     for(c in 1:nSim)
     {
       cat("Simulation: ", b, "\n")
-      
+
 
         df = Simulation(
           GS = Mat[b,1],ObsBias = Mat[b,2], FemSexRatio = Mat[b,3],FemPhenotypeBias = FemPhenotypeBias[a], nfocals = Mat[b,4],
@@ -382,31 +381,31 @@ for (a in a:length(FemPhenotypeBias))
         df$ObsBias = Mat[b,2]
         df$FemSexRatio = Mat[b,3]
         df$FemPhenotypeBias = FemPhenotypeBias[a]
-        df$nfocals =Mat[b,4] 
+        df$nfocals =Mat[b,4]
         df
       R = rbind(R, df)
-      
+
       cat("Parametric true positive rates for strength: ", sum(R[R$FemPhenotypeBias == T,]$Strength.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for strength: ", sum(R[R$FemPhenotypeBias == T,]$Strength.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates for strength: ", sum(R[R$FemPhenotypeBias == T,]$Strength.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
-      
+
       cat("Parametric true positive rates for eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates for eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
-      
+
       cat("Parametric true positive rates for alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates for alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
-      
-      
+
+
       cat("Parametric false positive rates for strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation false positive rates for strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation false positive rates for strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
-      
+
       cat("Parametric false positive rates for eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation false positive rates for eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation false positive rates for eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
-      
+
       cat("Parametric false positive rates for alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation false positive rates for alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation false positive rates for alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
@@ -415,4 +414,56 @@ for (a in a:length(FemPhenotypeBias))
 }
 beepr::beep()
 
-èStructural architecture
+## Simulations without biases of observation-------------------
+Mat[,2]<-rep(1,NumCombinations) # no obs bias keep constant to 1
+R2 =  NULL
+for (a in 1:length(FemPhenotypeBias))
+{
+  for(b in 1:nrow(Mat))
+  {
+    Result<-list()
+    result = NULL
+    for(c in 1:nSim)
+    {
+      cat(b, "\n")
+
+
+      df = Simulation(
+        GS = Mat[b,1],ObsBias = Mat[b,2], FemSexRatio = Mat[b,3],FemPhenotypeBias = FemPhenotypeBias[a], nfocals = Mat[b,4],
+        N.Perm = 100)
+
+      df$GS = Mat[b,1]
+      df$ObsBias = Mat[b,2]
+      df$FemSexRatio = Mat[b,3]
+      df$FemPhenotypeBias = FemPhenotypeBias[a]
+      df$nfocals =Mat[b,4]
+      R2 = rbind(R2, df)
+
+      cat("Parametric true positive rates for strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+      cat("Network permutation true positive rates for strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+      cat("Pre-network permutation true positive rates for strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+
+      cat("Parametric true positive rates for eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+      cat("Network permutation true positive rates for eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+      cat("Pre-network permutation true positive rates for eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+
+      cat("Parametric true positive rates for alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+      cat("Network permutation true positive rates for alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+      cat("Pre-network permutation true positive rates for alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
+
+
+      cat("Parametric false positive rates for strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+      cat("Network permutation false positive rates for strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+      cat("Pre-network permutation false positive rates for strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+
+      cat("Parametric false positive rates for eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+      cat("Network permutation false positive rates for eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+      cat("Pre-network permutation false positive rates for eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+
+      cat("Parametric false positive rates for alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+      cat("Network permutation false positive rates for alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+      cat("Pre-network permutation false positive rates for alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
+    }
+  }
+}
+beepr::beep()
