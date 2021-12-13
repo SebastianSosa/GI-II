@@ -114,10 +114,8 @@ sim.data <- function(N =50, n.obs = 100, effect = T, metric = "DEGREE"){
   ############ Modification 2
   ######################################################################################################
   ids$strength <- rowSums(network)
-  p1 = ggplot(ids, aes(x = LOCATION, y = strength))+geom_point()
 
   ids$strength.corrected <- rowSums(network.corrected)
-  p2 = ggplot(ids, aes(x = LOCATION, y = strength.corrected))+geom_point()
 
   ids$eigen <- sna::evcent(network)
   ids$eigen.corrected <- sna::evcent(network.corrected)
