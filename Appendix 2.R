@@ -1,7 +1,3 @@
-library(ggplot2)
-library(ggpubr)
-library(igraph)
-library(sna)
 library(ANTs)
 ### BASIC SIMULATION FUNCTIONS
 
@@ -199,12 +195,7 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   ids$DEGREE.Corrected <- rowSums(Net.Ori.corrected)
   ids$DEGREE.Bias <- rowSums(Net.Bias)
   ids$DEGREE.Bias.Corrected <- rowSums(Net.Biais.corrected)
-  print(summary(lm(DEGREE.Bias.Corrected~SEX,data=ids)))
 
-  p1 = ggplot(ids, aes(x = SEX, y = DEGREE.Corrected, color = SEX))+geom_text(label = ids$ID)
-  p2 = ggplot(ids, aes(x = SEX, y = DEGREE.Bias, color = SEX))+geom_text(label = ids$ID)
-  p3 = ggplot(ids, aes(x = SEX, y = DEGREE.Bias.Corrected, color = SEX))+geom_text(label = ids$ID)
-  print(ggarrange(p1, p2,  p3,  ncol = 3, nrow = 1, common.legend = T))
 
   ############################################################################################################
   ######### Modification  4 (extension): Compute degree and eigenvector
