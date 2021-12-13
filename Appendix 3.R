@@ -1,7 +1,3 @@
-library(ggplot2)
-library(ggpubr)
-library(igraph)
-library(sna)
 library(ANTs)
 ############################################################################################################
 ######### Modification  1 (conceptual): SRI for directed behaviours
@@ -315,15 +311,6 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
     obs.per.ind.Bias[x] = length(which(focal.id %in% x))
   }
   ids$obs.bias = obs.per.ind.Bias
-
-  p1 = ggplot(ids, aes(x = SEX, y = obs.bias, color = SEX))+geom_text(label = ids$ID)+ggtitle("Bias of observaiton")
-  p2 = ggplot(ids, aes(x = SEX, y = DEGREE, color = SEX))+geom_text(label = ids$ID)+ggtitle("True relationship between strength and sex")
-  p3 = ggplot(ids, aes(x = SEX, y = DEGREE.Corrected, color = SEX))+geom_text(label = ids$ID)+ggtitle("Biased relationship between strength and sex")
-  p4 = ggplot(ids, aes(x = SEX, y = DEGREE.Bias.Corrected, color = SEX))+geom_text(label = ids$ID)+ggtitle("Corrected relationship between strength and sex")
-  p5 = ggplot(ids, aes(x = DEGREE, y = DEGREE.Bias, color = SEX))+geom_text(label = ids$ID)+ggtitle("Correlation between true strength and biased")
-  p6 = ggplot(ids, aes(x = DEGREE.Corrected, y = DEGREE.Bias.Corrected, color = SEX))+geom_text(label = ids$ID)+ggtitle("Correlation between true strength and corrected")
-
-  print(ggarrange(p1, p2, p3, p4, p5, p6,  ncol = 3, nrow = 2, common.legend = T))
 
   ############################################################################################################
   ######### Modification  2 (extension): Compute degree and eigenvector
