@@ -1,6 +1,4 @@
 library(ANTs)
-library(ggplot2)
-library(ggpubr)
 ############################################################################################################
 ######### Modification  1 (conceptual): SRI for directed behaviours
 directed.sri <- function(df, scan, actor = 'Actor', receiver = 'Receiver', weigth = "weigth",
@@ -109,14 +107,25 @@ pref.attch <- function (ids  = 50, OBS = 1000, non.alters.prob = 0.1, Ngroups= 4
   if(non.alters.prob > 1){stop("Argument denstiy need to be higer than 0 an lower than 1")}
   # Creating groups within the population of individuals that will be observed together but not neceserlly interacting together.
   ids = 1:ids
-  ids.group = sample(1:Ngroups, length(ids), replace = T)
+  grp = 1:Ngroups
+  ids.group = sample(grp, length(ids), replace = T)
+
+  if(length(unique(ids.group)) != Ngroups){
+    current.grp = length(unique(ids.group))
+    to.do = grp[!grp %in% unique(ids.group)]
+    for (a in 1:length(to.do)) {
+      ids.group[sample(ids.group,1)] = to.do[a]
+    }
+  }
 
   m = matrix(0, length(ids), length(ids)) # Matrix size
   colnames(m) = rownames(m) = as.character(ids)
 
   density2 = 0 # density to reach
   a = 1
-  result = NULL
+  result = data.frame(ego=integer(),
+                      alter=integer(),
+                      scan=integer())
 
   while (a < OBS) {
     scan = a
@@ -314,7 +323,7 @@ pref.attch <- function (ids  = 50, OBS = 1000, non.alters.prob = 0.1, Ngroups= 4
 #' @param non.alters.prob probability of creation of links to assign between non-alters
 #' @param Ngroups number of subgroups within the population. The idea is to create subgroups with higher probability of occurence as the index of interaction accounts for the presence but not for interactions
 #' @param groups.size.scan Mean group size per scan based on a normal distribution of standard deviance of 2
-simulation <- function(ids =1:50, OBS = 1000, non.alters.prob = 0.1, ynull = F, nperm = 1000, bias = 10){
+simulation <- function(ids =50, OBS = 1000, non.alters.prob = 0.1, ynull = F, nperm = 1000, bias = 10){
   # Data creation----------
   ## Creating data set of non random associations
   dat2 = pref.attch(ids =ids, OBS = OBS, non.alters.prob = non.alters.prob)
@@ -380,21 +389,14 @@ simulation <- function(ids =1:50, OBS = 1000, non.alters.prob = 0.1, ynull = F, 
   # Compute index of interactions
   m2 = directed.sri(new.dat, scan= "scan",  actor = 1, receiver = 2, ynull = FALSE)
   tmp = df.create(m2)
-  tmp = met.outstrength(m2, df=tmp, dfid = "id")
-  tmp = met.degree(m2, df=tmp, sym = FALSE, dfid = "id")
-  tmp = met.eigen(m2, df=tmp, sym = FALSE, dfid = "id")
-  tmp = tmp[,-ncol(tmp)]# bouble column insert by ANTs function (ANTs)
+  tmp$outstrength = met.outstrength(m2, dfid = "id")
+  tmp$degree = met.degree(m2, sym = FALSE, dfid = "id")
+  tmp$eigen = met.eigen(m2, sym = FALSE, dfid = "id")
   colnames(tmp) = paste(colnames(tmp),".bias", sep = "")
   colnames(tmp)[1] = "id"
   d2 = merge(d2, tmp, by = "id")
   d2$degree.bias = d2$degree.bias / d2$nobs
-  summary(lm(outstrength.bias ~ trait, data = d2))
 
-  p0 = ggplot(d2, aes(x = outstrength, y = trait))+geom_point()
-  p1 = ggplot(d2, aes(x = outstrength.bias, y = trait))+geom_point()
-  p2 = ggplot(d2, aes(x = outstrength.bias, y = outstrength))+
-    geom_point(aes(x = outstrength.bias, y = outstrength))
-  print(ggarrange(p0, p1,p2, nrow = 1, ncol = 3))
   # Node label ---------------
 
 
@@ -437,7 +439,7 @@ simulation <- function(ids =1:50, OBS = 1000, non.alters.prob = 0.1, ynull = F, 
   r$perm = 1:nrow(r)
   return(r)
 }
-
+simulation()
 # Latin hypercube sampling--------------------------------------
 library(lhs)
 NumCombinations<-500
@@ -451,7 +453,7 @@ VarNames<-c("GroupSize",    ## Range 10-100
 LHS<-randomLHS(NumCombinations,VariablesToSample)
 Mat<-matrix(NA,nrow=NumCombinations,ncol=VariablesToSample)
 Mat[,1]<-round((30 + (LHS[,1]*(100-10))),0)
-Mat[,2]<-round(0.2 + (LHS[,2]*(0.8-0.2)),2)
+Mat[,2]<-round(1000 + (LHS[,2]*(10000-1000)),0)
 Mat[,3]<-round(0.2 + (LHS[,3]*(0.25-0.1)),2)
 Mat[,4]<-round(0.2 + (LHS[,4]*(40-1)),2)
 
@@ -462,7 +464,7 @@ for (a in a:nrow(Mat)) {
       ", N individuals = ", Mat[a,1],
        ", biases = ", Mat[a,4],"%, ",
       "preferential attachment = ", (1 - Mat[a,3])*100,"%","\n")
-  tmp =  simulation(ids = 1:Mat[a,1], density = Mat[a,2], non.alters.prob = Mat[a,3], ynull = F, nperm = 10000, bias = Mat[a,4])
+  tmp =  simulation(ids = Mat[a,1], OBS = Mat[a,2], non.alters.prob = Mat[a,3], ynull = F, nperm = 10000, bias = Mat[a,4])
 
   tmp2 = ANTs:::stat.p(tmp$Outstrength.trait)
   tmp3 = ANTs:::stat.p(tmp$Outstrength.trait.rand)
@@ -531,7 +533,7 @@ for (a in a:nrow(Mat)) {
       ", N individuals = ", Mat[a,1],
       ", biases = ", Mat[a,4],"%, ",
       "preferential attachment = ", (1 - Mat[a,3])*100,"%","\n")
-  tmp =  simulation(ids = 1:Mat[a,1], density = Mat[a,2], non.alters.prob = Mat[a,3], ynull = F, nperm = 10000, bias = Mat[a,4])
+  tmp =  simulation(ids = Mat[a,1], OBS = Mat[a,2], non.alters.prob = Mat[a,3], ynull = F, nperm = 10000, bias = Mat[a,4])
 
   tmp2 = ANTs:::stat.p(tmp$Outstrength.trait)
   tmp3 = ANTs:::stat.p(tmp$Outstrength.trait.rand)
