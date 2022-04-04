@@ -2,7 +2,7 @@ library(ANTs)
 ############################################################################################################
 ######### Modification  1 (conceptual): SRI for directed behaviours
 directed.sri <- function(df, scan, actor = 'Actor', receiver = 'Receiver', weigth = "weigth",
-                         method = 'sri', ynull = FALSE){
+                         method = 'sri', ynull = FALSE, GI = T, return.GI = F){
   col_w <- ANTs:::df.col.findId(df, weigth)
   ### Get index of column with the scan
   col_scan <- ANTs:::df.col.findId(df, scan)
@@ -80,19 +80,22 @@ directed.sri <- function(df, scan, actor = 'Actor', receiver = 'Receiver', weigt
 
   if(method == 'sri'){
     if(ynull){
+      if(GI){result = (Xab/(Xab + Xba + Ya + Yb + Yab + Ynull))/(Xab + Xba + Ya  + Yb )}else{result = (Xab/(Xab + Xba + Ya + Yb + Yab + Ynull))}
       # index of interactions corrected by samplign effort
-      result = (Xab/(Xab + Xba + Ya + Yb + Yab + Ynull))/(Xab + Xba + Ya  + Yb )
+      
     }else{
       # index of interactions corrected by samplign effort
-      result = (Xab/(Xab + Xba + Ya + Yb + Yab ))/(Xab + Xba + Ya  + Yb )
+      if(GI){result = (Xab/(Xab + Xba + Ya + Yb + Yab ))/(Xab + Xba + Ya  + Yb )}else{result = (Xab/(Xab + Xba + Ya + Yb + Yab ))}
     }
 
     result[is.na(result)] = 0
-    return(result)
+
   }else{
     "Currently not available."
   }
-  return(result)
+  
+  if(return.GI){return(list("interaction" = result, "sampling effort" = (Xab + Xba + Ya  + Yb )))}else{return(result)}
+  
 }
 ############################################################################################################
 #' @title Create preferential interactions
@@ -107,25 +110,14 @@ pref.attch <- function (ids  = 50, OBS = 1000, non.alters.prob = 0.1, Ngroups= 4
   if(non.alters.prob > 1){stop("Argument denstiy need to be higer than 0 an lower than 1")}
   # Creating groups within the population of individuals that will be observed together but not neceserlly interacting together.
   ids = 1:ids
-  grp = 1:Ngroups
-  ids.group = sample(grp, length(ids), replace = T)
-
-  if(length(unique(ids.group)) != Ngroups){
-    current.grp = length(unique(ids.group))
-    to.do = grp[!grp %in% unique(ids.group)]
-    for (a in 1:length(to.do)) {
-      ids.group[sample(ids.group,1)] = to.do[a]
-    }
-  }
+  ids.group = sample(1:Ngroups, length(ids), replace = T)
 
   m = matrix(0, length(ids), length(ids)) # Matrix size
   colnames(m) = rownames(m) = as.character(ids)
 
   density2 = 0 # density to reach
   a = 1
-  result = data.frame(ego=integer(),
-                      alter=integer(),
-                      scan=integer())
+  result = NULL
 
   while (a < OBS) {
     scan = a
@@ -337,38 +329,13 @@ simulation <- function(ids =50, OBS = 1000, non.alters.prob = 0.1, ynull = F, np
   for (b in 1:length(ids)) {
     nobs[nobs$id %in% ids[b],]$nobs = length(unique(dat2[dat2$ego %in% ids[b] | dat2$alter %in% ids[b],]$scan))
   }
+  
   #perms = perm.ds.directed(df = dat2, scan= "scan", ctrlf= "loc", actor = 1, receiver = 2, nperm = nperm)
   ## Simulating relationship with explanatory variable and realizing Linear model--------------
   # Compute index of interactions
-  m = directed.sri(dat2, scan= "scan",  actor = 1, receiver = 2, ynull = F)
-  d2 = df.create(m)
-  d2$outstrength = met.outstrength(m, dfid = "id")
-  d2$degree = met.degree(m, sym = FALSE, dfid = "id")
-  d2$eigen = met.eigen(m, sym = FALSE, dfid = "id")
+  m = directed.sri(dat2, scan= "scan",  actor = 1, receiver = 2, ynull = F, GI = F, return.GI = T)# Direct sri without correction
+  d2 = df.create(m[[1]])
   d2 = merge(d2, nobs, by = "id", all = T)
-  d2$degree = d2$degree / d2$nobs
-
-  # Creation of a variable that is related to individuals outstrength
-  d2 = d2[order(d2$outstrength),]
-  trait = rnorm(nrow(d2),0,2)
-  d2$trait = trait[order(trait)]
-  d2$trait = d2$trait-min(d2$trait) + 1
-  d2$trait.rand = sample(d2$trait)
-  test = T
-
-  # Randomize the same variable to  create a non relationship between individuals variable and outstrength
-  while(test){
-    # testing non random network with random relationship with y variable
-    d2$trait.rand = sample(d2$trait)
-
-    # We want a non significant random association
-    sig = summary(lm(outstrength ~ trait.rand, data = d2))$coefficients[2,4] > 0.05
-    # We want positive relationship to facilitate p-value computation
-    coef.sign = summary(lm(outstrength ~ trait.rand, data = d2))$coefficients[2,1] > 0
-
-    if(all(c(coef.sign, sig) == T)){test = FALSE}
-  }
-
   # Incorporating biases-------------
   bias = bias /1:nrow(d2)
   bias = rev(bias)
@@ -385,86 +352,175 @@ simulation <- function(ids =50, OBS = 1000, non.alters.prob = 0.1, ynull = F, np
       new.dat = rbind(new.dat, tmp)
     }
   }
+  
+  
+  d2$outstrength = met.outstrength(m[[1]], dfid = "id")
+  d2$degree = met.outdegree(m[[1]],  dfid = "id")
+  d2$eigen = met.eigen(m[[1]], sym = F, out = T)
+  
+  corrected.mat = m[[1]]/m[[2]]
+  corrected.mat[is.nan(corrected.mat)] = 0
+  corrected.mat[is.infinite(corrected.mat)]= 0
+  
+  d2$outstrength.corrected = met.outstrength(corrected.mat)
+  
+  d2$eigen.corrected  = met.eigen(corrected.mat, sym = F, out = T)
+ 
 
-  # Compute index of interactions
-  m2 = directed.sri(new.dat, scan= "scan",  actor = 1, receiver = 2, ynull = FALSE)
-  tmp = df.create(m2)
-  tmp$outstrength = met.outstrength(m2, dfid = "id")
-  tmp$degree = met.degree(m2, sym = FALSE, dfid = "id")
-  tmp$eigen = met.eigen(m2, sym = FALSE, dfid = "id")
-  colnames(tmp) = paste(colnames(tmp),".bias", sep = "")
-  colnames(tmp)[1] = "id"
-  d2 = merge(d2, tmp, by = "id")
-  d2$degree.bias = d2$degree.bias / d2$nobs
+  d2$degree.corrected  = d2$degree / d2$nobs
 
-  # Node label ---------------
+  # Creation of a variable that is related to individuals social measures--------------------
+  d2 = d2[order(d2$outstrength),]
+  trait = rnorm(nrow(d2),0,2)
+  d2$trait.outstrength = trait[order(trait)]
+  d2$trait.outstrength  = d2$trait.outstrength -min(d2$trait.outstrength ) + 1
+  d2$trait.rand.outstrength  = sample(d2$trait.outstrength)
+  
+  d2 = d2[order(d2$degree),]
+  trait = rnorm(nrow(d2),0,2)
+  d2$trait.degree = trait[order(trait)]
+  d2$trait.degree  = d2$trait.degree -min(d2$trait.degree ) + 1
+  d2$trait.rand.degree = sample(d2$trait.degree)
+  
+  d2 = d2[order(d2$eigen),]
+  trait = rnorm(nrow(d2),0,2)
+  d2$trait.eigen = trait[order(trait)]
+  d2$trait.eigen  = d2$trait.eigen -min(d2$trait.eigen) + 1
+  d2$trait.rand.eigen = sample(d2$trait.eigen)
 
 
-  r = c(coefficients(lm(outstrength.bias ~ trait, data = d2))[2],
-        coefficients(lm(outstrength.bias ~ trait.rand, data = d2))[2],
+  ###### Data permutations ###############
+  ############################################################################################################
+  ######### Node label permutations---------------------
 
-        coefficients(lm(degree.bias ~ trait, data = d2))[2],
-        coefficients(lm(degree.bias ~ trait.rand, data = d2))[2],
-
-        coefficients(lm(eigen.bias ~ trait, data = d2))[2],
-        coefficients(lm(eigen.bias ~ trait.rand, data = d2))[2])
+  r = c(coefficients(lm(outstrength ~ trait.outstrength, data = d2))[2],
+        coefficients(lm(outstrength ~ trait.rand.outstrength, data = d2))[2],
+        coefficients(lm(degree ~ trait.degree, data = d2))[2],
+        coefficients(lm(degree ~ trait.rand.degree, data = d2))[2],
+        coefficients(lm(eigen ~ trait.eigen, data = d2))[2],
+        coefficients(lm(eigen ~ trait.rand.eigen, data = d2))[2],
+  
+        coefficients(lm(outstrength.corrected  ~ trait.outstrength, data = d2))[2],
+        coefficients(lm(outstrength.corrected  ~ trait.rand.outstrength, data = d2))[2],
+        coefficients(lm(degree.corrected  ~ trait.degree, data = d2))[2],
+        coefficients(lm(degree.corrected ~ trait.rand.degree, data = d2))[2],
+        coefficients(lm(eigen.corrected ~ trait.eigen, data = d2))[2],
+        coefficients(lm(eigen.corrected ~ trait.rand.eigen, data = d2))[2]
+        )
+  
 
   for (b in 1:nperm) {
-    r1 = coefficients(lm(outstrength.bias ~ sample(trait), data = d2))[2]
-    r2 = coefficients(lm(outstrength.bias ~ sample(trait.rand), data = d2))[2]
+    r1 = coefficients(lm(outstrength ~ sample(trait.outstrength), data = d2))[2]
+    r2 = coefficients(lm(outstrength ~ sample(trait.rand.outstrength), data = d2))[2]
+    r3 = coefficients(lm(degree ~ sample(trait.degree), data = d2))[2]
+    r4 = coefficients(lm(degree ~ sample(trait.rand.degree), data = d2))[2]
+    r5 = coefficients(lm(eigen ~ sample(trait.eigen), data = d2))[2]
+    r6 = coefficients(lm(eigen ~ sample(trait.rand.eigen), data = d2))[2]
 
-    r3 = coefficients(lm(degree.bias ~ sample(trait), data = d2))[2]
-    r4 = coefficients(lm(degree.bias ~ sample(trait.rand), data = d2))[2]
+    r7 = coefficients(lm(outstrength.corrected ~ sample(trait.outstrength), data = d2))[2]
+    r8 = coefficients(lm(outstrength.corrected ~ sample(trait.rand.outstrength), data = d2))[2]
+    r9 = coefficients(lm(degree.corrected ~ sample(trait.degree), data = d2))[2]
+    r10 = coefficients(lm(degree.corrected ~ sample(trait.rand.degree), data = d2))[2]
+    r11 = coefficients(lm(eigen.corrected ~ sample(trait.eigen), data = d2))[2]
+    r12 = coefficients(lm(eigen.corrected ~ sample(trait.rand.eigen), data = d2))[2]    
 
-    r5 = coefficients(lm(eigen.bias ~ sample(trait), data = d2))[2]
-    r6 = coefficients(lm(eigen.bias ~ sample(trait.rand), data = d2))[2]
-
-    r = rbind(r, c(r1,r2,r3,r4,r5,r6))
+    r = rbind(r, c(r1,r2,r3,r4,r5,r6, r7, r8, r9, r10, r11, r12))
   }
   r = as.data.frame(r)
-  r[,7] = summary(lm(outstrength.bias ~ trait, data = d2))$coefficients[2,4]
-  r[,8] = summary(lm(outstrength.bias ~ trait.rand, data = d2))$coefficients[2,4]
-  r[,9] = summary(lm(degree.bias ~ trait, data = d2))$coefficients[2,4]
-  r[,10] = summary(lm(degree.bias ~ trait.rand, data = d2))$coefficients[2,4]
-  r[,11] = summary(lm(eigen.bias ~ trait, data = d2))$coefficients[2,4]
-  r[,12] = summary(lm(eigen.bias ~ trait.rand, data = d2))$coefficients[2,4]
+  
+  ############################################################################################################
+  ######### Modification  1 : One-tailed parametric test
+  s.degree = summary(lm(outstrength ~ trait.outstrength,data=d2))
+  s.eigen = summary(lm(eigen ~ trait.eigen, data = d2))
+  s.alters = summary(lm(degree ~ trait.degree, data = d2))
+  
+  s.degree.rand = summary(lm(outstrength ~ trait.rand.outstrength, data = d2))
+  s.eigen.rand = summary(lm(eigen ~ trait.rand.eigen, data = d2))
+  s.alters = summary(lm(degree ~ trait.rand.degree, data = d2))
+  
+  p.degree = pt(coef(s.degree)[,3], s.degree$df[2], lower = F)[2]
+  p.eigen = pt(coef(s.eigen)[,3], s.eigen$df[2], lower = F)[2]
+  p.alters = pt(coef(s.alters)[,3], s.alters$df[2], lower = F)[2]
+  
+  p.degree.rand = pt(coef(s.degree)[,3], s.degree$df[2], lower = F)[2]
+  p.eigen.rand = pt(coef(s.eigen)[,3], s.eigen$df[2], lower = F)[2]
+  p.alters.rand = pt(coef(s.alters)[,3], s.alters$df[2], lower = F)[2]
+  
+  r[,13] = p.degree
+  r[,14] = p.degree.rand
+  r[,15] =p.alters
+  r[,16] = p.alters.rand
+  r[,17] = p.eigen
+  r[,18] = p.eigen.rand
+  
+  s.degree = summary(lm(outstrength.corrected ~ trait.outstrength,data=d2))
+  s.eigen = summary(lm(eigen.corrected ~ trait.eigen, data = d2))
+  s.alters = summary(lm(degree.corrected ~ trait.degree, data = d2))
+  
+  s.degree.rand = summary(lm(outstrength ~ trait.rand.outstrength, data = d2))
+  s.eigen.rand = summary(lm(eigen ~ trait.rand.eigen, data = d2))
+  s.alters = summary(lm(degree ~ trait.rand.degree, data = d2))
+  
+  p.degree = pt(coef(s.degree)[,3], s.degree$df[2], lower = F)[2]
+  p.eigen = pt(coef(s.eigen)[,3], s.eigen$df[2], lower = F)[2]
+  p.alters = pt(coef(s.alters)[,3], s.alters$df[2], lower = F)[2]
+  
+  p.degree.rand = pt(coef(s.degree)[,3], s.degree$df[2], lower = F)[2]
+  p.eigen.rand = pt(coef(s.eigen)[,3], s.eigen$df[2], lower = F)[2]
+  p.alters.rand = pt(coef(s.alters)[,3], s.alters$df[2], lower = F)[2]
+  
+  r[,19] = p.degree
+  r[,20] = p.degree.rand
+  r[,21] =p.alters
+  r[,22] = p.alters.rand
+  r[,23] = p.eigen
+  r[,24] = p.eigen.rand
+  
   rownames(r) = NULL
   colnames(r) = c("Outstrength.trait", "Outstrength.trait.rand",
                   "Degree.trait", "Degree.trait.rand",
                   "Eigen.trait", "Eigen.trait.rand",
-                  "Outstrengthparametric.p.non.rand", "Outstrengthparametric.p.rand",
+                  "Outstrength.trait.corrected", "Outstrength.trait.rand.corrected",
+                  "Degree.trait.corrected", "Degree.trait.rand.corrected",
+                  "Eigen.trait.corrected", "Eigen.trait.rand.corrected",
+                  
+                  "Outstrength.parametric.p.non.rand", "Outstrength.parametric.p.rand",
                   "Degree.parametric.p.non.rand", "Degree.parametric.p.rand",
-                  "Eigen.parametric.p.non.rand", "Eigen.parametric.p.rand")
+                  "Eigen.parametric.p.non.rand", "Eigen.parametric.p.rand",
+                  "Outstrength.parametric.p.non.rand.corrected", "Outstrength.parametric.p.rand.corrected",
+                  "Degree.parametric.p.non.rand.corrected", "Degree.parametric.p.rand.corrected",
+                  "Eigen.parametric.p.non.rand.corrected", "Eigen.parametric.p.rand.corrected")
   #R0$perm = 1:nrow(R0)
   r$perm = 1:nrow(r)
   return(r)
 }
-simulation()
+
 # Latin hypercube sampling--------------------------------------
 library(lhs)
 NumCombinations<-500
 ## Simulations with biases of observation-------------------
 VariablesToSample<-4
-VarNames<-c("GroupSize",    ## Range 10-100
-            "density",  ## Range 0.2-0.80
+VarNames<-c("GroupSize",    ## Range 30-100
+            "OBS",  ## Range 100-1000
             "non.alters.prob",## Range 0.1-0.3
             "biases")## Range 1-20
 
 LHS<-randomLHS(NumCombinations,VariablesToSample)
 Mat<-matrix(NA,nrow=NumCombinations,ncol=VariablesToSample)
 Mat[,1]<-round((30 + (LHS[,1]*(100-10))),0)
-Mat[,2]<-round(1000 + (LHS[,2]*(10000-1000)),0)
+Mat[,2]<-round(100 + (LHS[,2]*(1000-100)),0)
 Mat[,3]<-round(0.2 + (LHS[,3]*(0.25-0.1)),2)
 Mat[,4]<-round(0.2 + (LHS[,4]*(40-1)),2)
 
 a = 1
-result1 = result2 = result3 =  NULL
+result1 = result2 = result3 =  result4 = result5 = result6 = NULL
 for (a in a:nrow(Mat)) {
+  cat("#################################################################################", '\n')
   cat("Simulation ", a,
       ", N individuals = ", Mat[a,1],
        ", biases = ", Mat[a,4],"%, ",
       "preferential attachment = ", (1 - Mat[a,3])*100,"%","\n")
-  tmp =  simulation(ids = Mat[a,1], OBS = Mat[a,2], non.alters.prob = Mat[a,3], ynull = F, nperm = 10000, bias = Mat[a,4])
+  tmp =  simulation(ids = Mat[a,1], OBS = Mat[a,2], non.alters.prob = Mat[a,3], ynull = F, nperm = 1000, bias = Mat[a,4])
 
   tmp2 = ANTs:::stat.p(tmp$Outstrength.trait)
   tmp3 = ANTs:::stat.p(tmp$Outstrength.trait.rand)
@@ -486,24 +542,44 @@ for (a in a:nrow(Mat)) {
   tmp8$type = c("non random", "random")
   tmp8$p = c(tmp$Eigen.parametric.p.non.rand[1], tmp$Eigen.parametric.p.rand[1])
   result3 = rbind(result3,tmp8)
+  
+  tmp2 = ANTs:::stat.p(tmp$Outstrength.trait.corrected)
+  tmp3 = ANTs:::stat.p(tmp$Outstrength.trait.rand.corrected)
+  tmp4 = as.data.frame(rbind(tmp2, tmp3))
+  tmp4$type = c("non random", "random")
+  tmp4$p = c(tmp$Outstrength.parametric.p.non.rand.corrected[1], tmp$Outstrength.parametric.p.rand.corrected[1])
+  result4 = rbind(result4,tmp4)
+  
+  tmp4 = ANTs:::stat.p(tmp$Degree.trait.corrected)
+  tmp5 = ANTs:::stat.p(tmp$Degree.trait.rand.corrected)
+  tmp6 = as.data.frame(rbind(tmp4, tmp5))
+  tmp6$type = c("non random", "random")
+  tmp6$p = c(tmp$Degree.parametric.p.non.rand.corrected[1], tmp$Degree.parametric.p.rand.corrected[1])
+  result5 = rbind(result5,tmp6)
+  
+  tmp6 = ANTs:::stat.p(tmp$Eigen.trait.corrected)
+  tmp7 = ANTs:::stat.p(tmp$Eigen.trait.rand.corrected)
+  tmp8 = as.data.frame(rbind(tmp6, tmp7))
+  tmp8$type = c("non random", "random")
+  tmp8$p = c(tmp$Eigen.parametric.p.non.rand.corrected[1], tmp$Eigen.parametric.p.rand.corrected[1])
+  result6 = rbind(result6,tmp8)
+  
+  cat("#################################################################################", '\n')
+  cat("Without GI", '\n')
+  cat("Rates of false positives for outstrength approach: ",
+      (nrow(result1[result1$type %in% "random" & result1$`p-value_left_side` < 0.05, ])*100)/nrow(result1[result1$type %in% "random",]), "\n")
+  cat("Rates of false negatives for outstrength approach: ",
+      (nrow(result1[result1$type %in% "non random" & result1$`p-value_left_side` > 0.05, ])*100)/nrow(result1[result1$type %in% "non random",]), "\n")
 
+  cat("Rates of false positives for outdegree approach: ",
+      (nrow(result2[result2$type %in% "random" & result2$`p-value_left_side` < 0.05, ])*100)/nrow(result2[result2$type %in% "random",]), "\n")
+  cat("Rates of false negatives for outdegree approach: ",
+      (nrow(result2[result2$type %in% "non random" & result2$`p-value_left_side` > 0.05, ])*100)/nrow(result2[result2$type %in% "non random",]), "\n")
 
-
-  cat("Rates of false positives for outstrength with GI approach: ",
-      (nrow(result1[result1$type %in% "random" & result1$`p-value_one_side` < 0.05, ])*100)/nrow(result1[result1$type %in% "random",]), "\n")
-  cat("Rates of false negatives for outstrength with GI approach: ",
-      (nrow(result1[result1$type %in% "non random" & result1$`p-value_one_side` > 0.05, ])*100)/nrow(result1[result1$type %in% "non random",]), "\n")
-
-  cat("Rates of false positives for outdegree with GI approach: ",
-      (nrow(result2[result2$type %in% "random" & result2$`p-value_one_side` < 0.05, ])*100)/nrow(result2[result2$type %in% "random",]), "\n")
-  cat("Rates of false negatives for outdegree with GI approach: ",
-      (nrow(result2[result2$type %in% "non random" & result2$`p-value_one_side` > 0.05, ])*100)/nrow(result2[result2$type %in% "non random",]), "\n")
-
-  cat("Rates of false positives for eigenvector with GI approach: ",
-      (nrow(result3[result3$type %in% "random" & result3$`p-value_one_side` < 0.05, ])*100)/nrow(result3[result3$type %in% "random",]), "\n")
-  cat("Rates of false negatives for eigenvector with GI approach: ",
-      (nrow(result3[result3$type %in% "non random" & result3$`p-value_one_side` > 0.05, ])*100)/nrow(result3[result3$type %in% "non random",]), "\n")
-
+  cat("Rates of false positives for eigenvector approach: ",
+      (nrow(result3[result3$type %in% "random" & result3$`p-value_left_side` < 0.05, ])*100)/nrow(result3[result3$type %in% "random",]), "\n")
+  cat("Rates of false negatives for eigenvector approach: ",
+      (nrow(result3[result3$type %in% "non random" & result3$`p-value_left_side` > 0.05, ])*100)/nrow(result3[result3$type %in% "non random",]), "\n")
 
   cat("\n")
   # Rates of false negatives
@@ -511,83 +587,291 @@ for (a in a:nrow(Mat)) {
       (nrow(result1[result1$type %in% "random" & result1$p < 0.05, ])*100)/nrow(result1[result1$type %in% "random",]), "\n")
   cat("Parametric rates of false negatives for outstrength with GI approach: ",
       (nrow(result1[result1$type %in% "non random" & result1$p > 0.05, ])*100)/nrow(result1[result1$type %in% "non random",]), "\n")
-
+  
   cat("Parametric rates of false positives for outdegree with GI approach: ",
       (nrow(result2[result2$type %in% "random" & result2$p < 0.05, ])*100)/nrow(result2[result2$type %in% "random",]), "\n")
   cat("Parametric rates of false negatives for outdegree with GI approach: ",
       (nrow(result2[result2$type %in% "non random" & result2$p > 0.05, ])*100)/nrow(result2[result2$type %in% "non random",]), "\n")
-
+  
   cat("Parametric rates of false positives for eigenvector with GI approach: ",
       (nrow(result3[result3$type %in% "random" & result3$p < 0.05, ])*100)/nrow(result3[result3$type %in% "random",]), "\n")
   cat("Parametric rates of false negatives for eigenvector with GI approach: ",
       (nrow(result3[result3$type %in% "non random" & result3$p > 0.05, ])*100)/nrow(result3[result3$type %in% "non random",]), "\n")
   cat("\n")
+  
+  cat("#################################################################################", '\n')
+  cat("With GI", '\n')
+  cat("Rates of false positives for outstrength: ",
+      (nrow(result4[result4$type %in% "random" & result4$`p-value_left_side` < 0.05, ])*100)/nrow(result4[result4$type %in% "random",]), "\n")
+  cat("Rates of false negatives for outstrength approach: ",
+      (nrow(result4[result4$type %in% "non random" & result4$`p-value_left_side` > 0.05, ])*100)/nrow(result1[result4$type %in% "non random",]), "\n")
+  
+  cat("Rates of false positives for outdegree: ",
+      (nrow(result5[result5$type %in% "random" & result5$`p-value_left_side` < 0.05, ])*100)/nrow(result5[result5$type %in% "random",]), "\n")
+  cat("Rates of false negatives for outdegree : ",
+      (nrow(result5[result5$type %in% "non random" & result5$`p-value_left_side` > 0.05, ])*100)/nrow(result5[result5$type %in% "non random",]), "\n")
+  
+  cat("Rates of false positives for eigenvector : ",
+      (nrow(result6[result6$type %in% "random" & result6$`p-value_left_side` < 0.05, ])*100)/nrow(result6[result6$type %in% "random",]), "\n")
+  cat("Rates of false negatives for eigenvector : ",
+      (nrow(result6[result6$type %in% "non random" & result6$`p-value_left_side` > 0.05, ])*100)/nrow(result6[result6$type %in% "non random",]), "\n")
+  
+  # Rates of false negatives
+  cat("Parametric rates of false positives for outstrength : ",
+      (nrow(result4[result4$type %in% "random" & result4$p < 0.05, ])*100)/nrow(result4[result4$type %in% "random",]), "\n")
+  cat("Parametric rates of false negatives for outstrength with GI approach: ",
+      (nrow(result4[result4$type %in% "non random" & result4$p > 0.05, ])*100)/nrow(result4[result4$type %in% "non random",]), "\n")
+  
+  cat("Parametric rates of false positives for outdegree with GI : ",
+      (nrow(result5[result5$type %in% "random" & result5$p < 0.05, ])*100)/nrow(result5[result5$type %in% "random",]), "\n")
+  cat("Parametric rates of false negatives for outdegree with GI : ",
+      (nrow(result5[result5$type %in% "non random" & result5$p > 0.05, ])*100)/nrow(result5[result5$type %in% "non random",]), "\n")
+  
+  cat("Parametric rates of false positives for eigenvector with GI : ",
+      (nrow(result6[result6$type %in% "random" & result6$p < 0.05, ])*100)/nrow(result6[result6$type %in% "random",]), "\n")
+  cat("Parametric rates of false negatives for eigenvector with GI : ",
+      (nrow(result6[result6$type %in% "non random" & result6$p > 0.05, ])*100)/nrow(result6[result6$type %in% "non random",]), "\n")
+  cat("\n")
+
 }
 
 ## Simulations without biases of observation-------------------
 Mat[,4] = 0
 a = 1
-result4 = result5 = result6 =  NULL
+result7 = result8 = result9 =  result10 = result11 = result12 =NULL
 for (a in a:nrow(Mat)) {
   cat("Simulation ", a,
       ", N individuals = ", Mat[a,1],
       ", biases = ", Mat[a,4],"%, ",
       "preferential attachment = ", (1 - Mat[a,3])*100,"%","\n")
-  tmp =  simulation(ids = Mat[a,1], OBS = Mat[a,2], non.alters.prob = Mat[a,3], ynull = F, nperm = 10000, bias = Mat[a,4])
-
+  tmp =  simulation(ids = Mat[a,1], OBS = Mat[a,2], non.alters.prob = Mat[a,3], ynull = F, nperm = 1000, bias = Mat[a,4])
+  
   tmp2 = ANTs:::stat.p(tmp$Outstrength.trait)
   tmp3 = ANTs:::stat.p(tmp$Outstrength.trait.rand)
   tmp4 = as.data.frame(rbind(tmp2, tmp3))
   tmp4$type = c("non random", "random")
   tmp4$p = c(tmp$Outstrength.parametric.p.non.rand[1], tmp$Outstrength.parametric.p.rand[1])
-  result4 = rbind(result4,tmp4)
-
+  result7 = rbind(result7,tmp4)
+  
   tmp4 = ANTs:::stat.p(tmp$Degree.trait)
   tmp5 = ANTs:::stat.p(tmp$Degree.trait.rand)
   tmp6 = as.data.frame(rbind(tmp4, tmp5))
   tmp6$type = c("non random", "random")
   tmp6$p = c(tmp$Degree.parametric.p.non.rand[1], tmp$Degree.parametric.p.rand[1])
-  result5 = rbind(result5,tmp6)
-
+  result8 = rbind(result8,tmp6)
+  
   tmp6 = ANTs:::stat.p(tmp$Eigen.trait)
   tmp7 = ANTs:::stat.p(tmp$Eigen.trait.rand)
   tmp8 = as.data.frame(rbind(tmp6, tmp7))
   tmp8$type = c("non random", "random")
   tmp8$p = c(tmp$Eigen.parametric.p.non.rand[1], tmp$Eigen.parametric.p.rand[1])
-  result6 = rbind(result6,tmp8)
-
-
-
-  cat("Rates of false positives for outstrength with GI approach: ",
-      (nrow(result4[result4$type %in% "random" & result4$`p-value_one_side` < 0.05, ])*100)/nrow(result4[result4$type %in% "random",]), "\n")
-  cat("Rates of false negatives for outstrength with GI approach: ",
-      (nrow(result4[result4$type %in% "non random" & result4$`p-value_one_side` > 0.05, ])*100)/nrow(result4[result4$type %in% "non random",]), "\n")
-
-  cat("Rates of false positives for outdegree with GI approach: ",
-      (nrow(result5[result5$type %in% "random" & result5$`p-value_one_side` < 0.05, ])*100)/nrow(result5[result5$type %in% "random",]), "\n")
-  cat("Rates of false negatives for outdegree with GI approach: ",
-      (nrow(result5[result5$type %in% "non random" & result5$`p-value_one_side` > 0.05, ])*100)/nrow(result5[result5$type %in% "non random",]), "\n")
-
-  cat("Rates of false positives for eigenvector with GI approach: ",
-      (nrow(result6[result6$type %in% "random" & result6$`p-value_one_side` < 0.05, ])*100)/nrow(result6[result6$type %in% "random",]), "\n")
-  cat("Rates of false negatives for eigenvector with GI approach: ",
-      (nrow(result6[result6$type %in% "non random" & result6$`p-value_one_side` > 0.05, ])*100)/nrow(result6[result6$type %in% "non random",]), "\n")
-
+  result9 = rbind(result9,tmp8)
+  
+  tmp2 = ANTs:::stat.p(tmp$Outstrength.trait.corrected)
+  tmp3 = ANTs:::stat.p(tmp$Outstrength.trait.rand.corrected)
+  tmp4 = as.data.frame(rbind(tmp2, tmp3))
+  tmp4$type = c("non random", "random")
+  tmp4$p = c(tmp$Outstrength.parametric.p.non.rand.corrected[1], tmp$Outstrength.parametric.p.rand.corrected[1])
+  result10 = rbind(result10,tmp4)
+  
+  tmp4 = ANTs:::stat.p(tmp$Degree.trait.corrected)
+  tmp5 = ANTs:::stat.p(tmp$Degree.trait.rand.corrected)
+  tmp6 = as.data.frame(rbind(tmp4, tmp5))
+  tmp6$type = c("non random", "random")
+  tmp6$p = c(tmp$Degree.parametric.p.non.rand.corrected[1], tmp$Degree.parametric.p.rand.corrected[1])
+  result11 = rbind(result11,tmp6)
+  
+  tmp6 = ANTs:::stat.p(tmp$Eigen.trait.corrected)
+  tmp7 = ANTs:::stat.p(tmp$Eigen.trait.rand.corrected)
+  tmp8 = as.data.frame(rbind(tmp6, tmp7))
+  tmp8$type = c("non random", "random")
+  tmp8$p = c(tmp$Eigen.parametric.p.non.rand.corrected[1], tmp$Eigen.parametric.p.rand.corrected[1])
+  result12 = rbind(result12,tmp8)
+  
+  
+  
+  cat("#################################################################################", '\n')
+  cat("Without GI", '\n')
+  cat("Rates of false positives for outstrength : ",
+      (nrow(result7[result7$type %in% "random" & result7$`p-value_left_side` < 0.05, ])*100)/nrow(result7[result7$type %in% "random",]), "\n")
+  cat("Rates of false negatives for outstrength : ",
+      (nrow(result7[result7$type %in% "non random" & result7$`p-value_left_side` > 0.05, ])*100)/nrow(result7[result7$type %in% "non random",]), "\n")
+  
+  cat("Rates of false positives for outdegree : ",
+      (nrow(result8[result8$type %in% "random" & result8$`p-value_left_side` < 0.05, ])*100)/nrow(result8[result8$type %in% "random",]), "\n")
+  cat("Rates of false negatives for outdegree : ",
+      (nrow(result8[result8$type %in% "non random" & result8$`p-value_left_side` > 0.05, ])*100)/nrow(result8[result8$type %in% "non random",]), "\n")
+  
+  cat("Rates of false positives for eigenvector : ",
+      (nrow(result9[result9$type %in% "random" & result9$`p-value_left_side` < 0.05, ])*100)/nrow(result9[result9$type %in% "random",]), "\n")
+  cat("Rates of false negatives for eigenvector : ",
+      (nrow(result9[result9$type %in% "non random" & result9$`p-value_left_side` > 0.05, ])*100)/nrow(result9[result9$type %in% "non random",]), "\n")
+  
   cat("\n")
   # Rates of false negatives
-  cat("Parametric rates  of false positives for outstrength with GI approach: ",
-      (nrow(result4[result4$type %in% "random" & result4$p < 0.05, ])*100)/nrow(result4[result4$type %in% "random",]), "\n")
-  cat("Parametric rates  of false negatives for outstrength with GI approach: ",
-      (nrow(result4[result4$type %in% "non random" & result4$p > 0.05, ])*100)/nrow(result4[result4$type %in% "non random",]), "\n")
-
-  cat("Parametric rates  of false positives for outdegree with GI approach: ",
-      (nrow(result5[result5$type %in% "random" & result5$p < 0.05, ])*100)/nrow(result5[result5$type %in% "random",]), "\n")
-  cat("Parametric rates  of false negatives for outdegree with GI approach: ",
-      (nrow(result5[result5$type %in% "non random" & result5$p > 0.05, ])*100)/nrow(result5[result5$type %in% "non random",]), "\n")
-
-  cat("Parametric rates  of false positives for eigenvector with GI approach: ",
-      (nrow(result6[result6$type %in% "random" & result6$p < 0.05, ])*100)/nrow(result6[result6$type %in% "random",]), "\n")
-  cat("Parametric rates  of false negatives for eigenvector with GI approach: ",
-      (nrow(result6[result6$type %in% "non random" & result6$p > 0.05, ])*100)/nrow(result6[result6$type %in% "non random",]), "\n")
+  cat("Parametric rates  of false positives for outstrength : ",
+      (nrow(result7[result7$type %in% "random" & result7$p < 0.05, ])*100)/nrow(result7[result7$type %in% "random",]), "\n")
+  cat("Parametric rates  of false negatives for outstrength : ",
+      (nrow(result7[result7$type %in% "non random" & result7$p > 0.05, ])*100)/nrow(result7[result7$type %in% "non random",]), "\n")
+  
+  cat("Parametric rates  of false positives for outdegree : ",
+      (nrow(result8[result8$type %in% "random" & result8$p < 0.05, ])*100)/nrow(result8[result8$type %in% "random",]), "\n")
+  cat("Parametric rates  of false negatives for outdegree : ",
+      (nrow(result8[result8$type %in% "non random" & result8$p > 0.05, ])*100)/nrow(result8[result8$type %in% "non random",]), "\n")
+  
+  cat("Parametric rates  of false positives for eigenvector : ",
+      (nrow(result9[result9$type %in% "random" & result9$p < 0.05, ])*100)/nrow(result9[result9$type %in% "random",]), "\n")
+  cat("Parametric rates  of false negatives for eigenvector : ",
+      (nrow(result9[result9$type %in% "non random" & result9$p > 0.05, ])*100)/nrow(result9[result9$type %in% "non random",]), "\n")
+  cat("\n")
+  
+  cat("#################################################################################", '\n')
+  cat("With GI", '\n')
+  cat("Rates of false positives for outstrength: ",
+      (nrow(result10[result10$type %in% "random" & result10$`p-value_left_side` < 0.05, ])*100)/nrow(result10[result10$type %in% "random",]), "\n")
+  cat("Rates of false negatives for outstrength: ",
+      (nrow(result10[result10$type %in% "non random" & result10$`p-value_left_side` > 0.05, ])*100)/nrow(result7[result10$type %in% "non random",]), "\n")
+  
+  cat("Rates of false positives for outdegree: ",
+      (nrow(result11[result11$type %in% "random" & result11$`p-value_left_side` < 0.05, ])*100)/nrow(result11[result11$type %in% "random",]), "\n")
+  cat("Rates of false negatives for outdegree: ",
+      (nrow(result11[result11$type %in% "non random" & result11$`p-value_left_side` > 0.05, ])*100)/nrow(result11[result11$type %in% "non random",]), "\n")
+  
+  cat("Rates of false positives for eigenvector: ",
+      (nrow(result12[result12$type %in% "random" & result12$`p-value_left_side` < 0.05, ])*100)/nrow(result12[result12$type %in% "random",]), "\n")
+  cat("Rates of false negatives for eigenvector: ",
+      (nrow(result12[result12$type %in% "non random" & result12$`p-value_left_side` > 0.05, ])*100)/nrow(result12[result12$type %in% "non random",]), "\n")
+  
+  cat("\n")
+  # Rates of false negatives
+  cat("Parametric rates  of false positives for outstrength with GI : ",
+      (nrow(result10[result10$type %in% "random" & result10$p < 0.05, ])*100)/nrow(result10[result10$type %in% "random",]), "\n")
+  cat("Parametric rates  of false negatives for outstrength with GI : ",
+      (nrow(result10[result10$type %in% "non random" & result10$p > 0.05, ])*100)/nrow(result10[result10$type %in% "non random",]), "\n")
+  
+  cat("Parametric rates  of false positives for outdegree with GI : ",
+      (nrow(result11[result11$type %in% "random" & result11$p < 0.05, ])*100)/nrow(result11[result11$type %in% "random",]), "\n")
+  cat("Parametric rates  of false negatives for outdegree with GI : ",
+      (nrow(result11[result11$type %in% "non random" & result11$p > 0.05, ])*100)/nrow(result11[result11$type %in% "non random",]), "\n")
+  
+  cat("Parametric rates  of false positives for eigenvector with GI : ",
+      (nrow(result12[result12$type %in% "random" & result12$p < 0.05, ])*100)/nrow(result12[result12$type %in% "random",]), "\n")
+  cat("Parametric rates  of false negatives for eigenvector with GI : ",
+      (nrow(result12[result12$type %in% "non random" & result12$p > 0.05, ])*100)/nrow(result12[result12$type %in% "non random",]), "\n")
   cat("\n")
 }
+
+
+#######################################
+##### Results
+#######################################
+
+d1 = data.frame(
+  "approches" = c("Nertwork permutations", "Parametric"),
+  "outstrength" = c((nrow(result1[result1$type %in% "random" & result1$`p-value_left_side` < 0.05, ])*100)/nrow(result1[result1$type %in% "random",]),
+                    (nrow(result1[result1$type %in% "random" & result1$p < 0.05, ])*100)/nrow(result1[result1$type %in% "random",])),
+  "outdegree" = c((nrow(result2[result2$type %in% "random" & result2$`p-value_left_side` < 0.05, ])*100)/nrow(result2[result2$type %in% "random",]),
+                  (nrow(result2[result2$type %in% "random" & result2$p < 0.05, ])*100)/nrow(result2[result2$type %in% "random",])),
+  "outeigenvector" = c((nrow(result3[result3$type %in% "random" & result3$`p-value_left_side` < 0.05, ])*100)/nrow(result3[result3$type %in% "random",]),
+                       (nrow(result3[result3$type %in% "random" & result3$p < 0.05, ])*100)/nrow(result3[result3$type %in% "random",])),
+  "Error Type" = rep("False positives rates", 2),
+  "Biases" = rep(TRUE, 2),
+  "GI" = rep(FALSE, 2)
+)
+
+d2 = data.frame(
+  "approches" = c("Nertwork permutations", "Parametric"),
+  "outstrength" = c((nrow(result1[result1$type %in% "non random" & result1$`p-value_left_side` > 0.05, ])*100)/nrow(result1[result1$type %in% "non random",]),
+                    (nrow(result1[result1$type %in% "non random" & result1$p > 0.05, ])*100)/nrow(result1[result1$type %in% "non random",])),
+  "outdegree" = c((nrow(result2[result2$type %in% "non random" & result2$`p-value_left_side` > 0.05, ])*100)/nrow(result2[result2$type %in% "non random",]),
+                  (nrow(result2[result2$type %in% "non random" & result2$p > 0.05, ])*100)/nrow(result2[result2$type %in% "non random",])),
+  "outeigenvector" = c((nrow(result3[result3$type %in% "non random" & result3$`p-value_left_side` > 0.05, ])*100)/nrow(result3[result3$type %in% "non random",]),
+                       (nrow(result3[result3$type %in% "non random" & result3$p > 0.05, ])*100)/nrow(result3[result3$type %in% "non random",])),
+  "Error Type" = rep("False negatives rates", 2),
+  "Biases" = rep(TRUE, 2),
+  "GI" = rep(FALSE, 2)
+)
+
+d3 = data.frame(
+  "approches" = c("Nertwork permutations", "Parametric"),
+  "outstrength" = c((nrow(result4[result4$type %in% "random" & result4$`p-value_left_side` < 0.05, ])*100)/nrow(result4[result4$type %in% "random",]),
+                    (nrow(result4[result4$type %in% "random" & result4$p < 0.05, ])*100)/nrow(result4[result4$type %in% "random",])),
+  "outdegree" = c((nrow(result5[result5$type %in% "random" & result5$`p-value_left_side` < 0.05, ])*100)/nrow(result5[result5$type %in% "random",]),
+                  (nrow(result5[result5$type %in% "random" & result5$p < 0.05, ])*100)/nrow(result5[result5$type %in% "random",])),
+  "outeigenvector" = c((nrow(result6[result6$type %in% "random" & result6$`p-value_left_side` < 0.05, ])*100)/nrow(result6[result6$type %in% "random",]),
+                       (nrow(result6[result6$type %in% "random" & result6$p < 0.05, ])*100)/nrow(result6[result6$type %in% "random",])),
+  "Error Type" = rep("False negatives rates", 2),
+  "Biases" = rep(TRUE, 2),
+  "GI" = rep(TRUE, 2)
+)
+
+d4 = data.frame(
+  "approches" = c("Nertwork permutations", "Parametric"),
+  "outstrength" = c((nrow(result4[result4$type %in% "non random" & result4$`p-value_left_side` > 0.05, ])*100)/nrow(result4[result4$type %in% "non random",]),
+                    (nrow(result4[result4$type %in% "non random" & result4$p > 0.05, ])*100)/nrow(result4[result4$type %in% "non random",])),
+  "outdegree" = c((nrow(result5[result5$type %in% "non random" & result5$`p-value_left_side` > 0.05, ])*100)/nrow(result5[result5$type %in% "non random",]),
+                  (nrow(result5[result5$type %in% "non random" & result5$p > 0.05, ])*100)/nrow(result5[result5$type %in% "non random",])),
+  "outeigenvector" = c((nrow(result6[result6$type %in% "non random" & result6$`p-value_left_side` > 0.05, ])*100)/nrow(result6[result6$type %in% "non random",]),
+                       (nrow(result6[result6$type %in% "non random" & result6$p > 0.05, ])*100)/nrow(result6[result6$type %in% "non random",])),
+  "Error Type" = rep("False negatives rates", 2),
+  "Biases" = rep(TRUE, 2),
+  "GI" = rep(TRUE, 2)
+)
+
+
+d5 = data.frame(
+  "approches" = c("Nertwork permutations", "Parametric"),
+  "outstrength" = c((nrow(result7[result7$type %in% "random" & result7$`p-value_left_side` < 0.05, ])*100)/nrow(result7[result7$type %in% "random",]),
+                    (nrow(result7[result7$type %in% "random" & result7$p < 0.05, ])*100)/nrow(result7[result7$type %in% "random",])),
+  "outdegree" = c((nrow(result8[result8$type %in% "random" & result8$`p-value_left_side` < 0.05, ])*100)/nrow(result8[result8$type %in% "random",]),
+                  (nrow(result8[result8$type %in% "random" & result8$p < 0.05, ])*100)/nrow(result8[result8$type %in% "random",])),
+  "outeigenvector" = c((nrow(result9[result9$type %in% "random" & result9$`p-value_left_side` < 0.05, ])*100)/nrow(result9[result9$type %in% "random",]),
+                       (nrow(result9[result9$type %in% "random" & result9$p < 0.05, ])*100)/nrow(result9[result9$type %in% "random",])),
+  "Error Type" = rep("False positives rates", 2),
+  "Biases" = rep(FALSE, 2),
+  "GI" = rep(FALSE, 2)
+)
+
+d6 = data.frame(
+  "approches" = c("Nertwork permutations", "Parametric"),
+  "outstrength" = c((nrow(result7[result7$type %in% "non random" & result7$`p-value_left_side` > 0.05, ])*100)/nrow(result7[result7$type %in% "non random",]),
+                    (nrow(result7[result7$type %in% "non random" & result7$p > 0.05, ])*100)/nrow(result7[result7$type %in% "non random",])),
+  "outdegree" = c((nrow(result8[result8$type %in% "non random" & result8$`p-value_left_side` > 0.05, ])*100)/nrow(result8[result8$type %in% "non random",]),
+                  (nrow(result8[result8$type %in% "non random" & result8$p > 0.05, ])*100)/nrow(result8[result8$type %in% "non random",])),
+  "outeigenvector" = c((nrow(result9[result9$type %in% "non random" & result9$`p-value_left_side` > 0.05, ])*100)/nrow(result9[result9$type %in% "non random",]),
+                       (nrow(result9[result9$type %in% "non random" & result9$p > 0.05, ])*100)/nrow(result9[result9$type %in% "non random",])),
+  "Error Type" = rep("False negatives rates", 2),
+  "Biases" = rep(FALSE, 2),
+  "GI" = rep(FALSE, 2)
+)
+
+d7 = data.frame(
+  "approches" = c("Nertwork permutations", "Parametric"),
+  "outstrength" = c((nrow(result10[result10$type %in% "random" & result10$`p-value_left_side` < 0.05, ])*100)/nrow(result10[result10$type %in% "random",]),
+                    (nrow(result10[result10$type %in% "random" & result10$p < 0.05, ])*100)/nrow(result10[result10$type %in% "random",])),
+  "outdegree" = c((nrow(result11[result11$type %in% "random" & result11$`p-value_left_side` < 0.05, ])*100)/nrow(result11[result11$type %in% "random",]),
+                  (nrow(result11[result11$type %in% "random" & result11$p < 0.05, ])*100)/nrow(result11[result11$type %in% "random",])),
+  "outeigenvector" = c((nrow(result12[result12$type %in% "random" & result12$`p-value_left_side` < 0.05, ])*100)/nrow(result12[result12$type %in% "random",]),
+                       (nrow(result12[result12$type %in% "random" & result12$p < 0.05, ])*100)/nrow(result12[result12$type %in% "random",])),
+  "Error Type" = rep("False negatives rates", 2),
+  "Biases" = rep(FALSE, 2),
+  "GI" = rep(TRUE, 2)
+)
+
+d8 = data.frame(
+  "approches" = c("Nertwork permutations", "Parametric"),
+  "outstrength" = c((nrow(result10[result10$type %in% "non random" & result10$`p-value_left_side` > 0.05, ])*100)/nrow(result10[result10$type %in% "non random",]),
+                    (nrow(result10[result10$type %in% "non random" & result10$p > 0.05, ])*100)/nrow(result10[result10$type %in% "non random",])),
+  "outdegree" = c((nrow(result11[result11$type %in% "non random" & result11$`p-value_left_side` > 0.05, ])*100)/nrow(result11[result11$type %in% "non random",]),
+                  (nrow(result11[result11$type %in% "non random" & result11$p > 0.05, ])*100)/nrow(result11[result11$type %in% "non random",])),
+  "outeigenvector" = c((nrow(result12[result12$type %in% "non random" & result12$`p-value_left_side` > 0.05, ])*100)/nrow(result12[result12$type %in% "non random",]),
+                       (nrow(result12[result12$type %in% "non random" & result12$p > 0.05, ])*100)/nrow(result12[result12$type %in% "non random",])),
+  "Error Type" = rep("False negatives rates", 2),
+  "Biases" = rep(FALSE, 2),
+  "GI" = rep(TRUE, 2)
+)
+
+
+RESULTS = rbind(d1, d2, d3, d4, d5, d6, d7, d8)
+
+write.csv(RESULTS, file = "results simulation 4.csv")

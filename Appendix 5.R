@@ -229,14 +229,27 @@ for (a in a:nrow(params)) {
     test0 = test0.1 = test1 = test2 = test3 = test4 = test5 = test6 = NULL
     for(d in 1:1000){
       if(d==1){
-        test0.0 = summary(lm(data = dat, formula = new.strength ~ TRAIT))$coefficients[2,4]
-        test0.1 = summary(lm(data = dat, formula = new.eigen ~ TRAIT))$coefficients[2,4]
-        test0.2 = summary(lm(data = dat, formula = new.degree ~ TRAIT))$coefficients[2,4]
+        
+        ############################################################################################################
+        ######### Modification  1 : One-tailed parametric test
+        s.degree = summary(lm(data = dat, formula = new.strength ~ TRAIT))
+        s.eigen = summary(lm(data = dat, formula = new.eigen ~ TRAIT))
+        s.alters = summary(lm(data = dat, formula = new.degree ~ TRAIT))
 
-        test0.3 = summary(lm(data = dat, formula = strength.corrected ~ TRAIT))$coefficients[2,4]
-        test0.4 = summary(lm(data = dat, formula = eigen.corrected ~ TRAIT))$coefficients[2,4]
-        test0.5 = summary(lm(data = dat, formula = degree.corrected ~ TRAIT))$coefficients[2,4]
+        test0.0 = pt(coef(s.degree)[,3], s.degree$df[2], lower = T)[2]
+        test0.1 = pt(coef(s.eigen)[,3], s.eigen$df[2], lower = T)[2]
+        test0.2 = pt(coef(s.alters)[,3], s.alters$df[2], lower = T)[2]
 
+        
+        s.degree = summary(lm(data = dat, formula = strength.corrected ~ TRAIT))
+        s.eigen = summary(lm(data = dat, formula = eigen.corrected ~ TRAIT))
+        s.alters = summary(lm(data = dat, formula = degree.corrected ~ TRAIT))
+        
+        test0.3 = pt(coef(s.degree)[,3], s.degree$df[2], lower = T)[2]
+        test0.4 = pt(coef(s.eigen)[,3], s.eigen$df[2], lower = T)[2]
+        test0.5 = pt(coef(s.alters)[,3], s.alters$df[2], lower = T)[2]
+        ############################################################################################################
+        
         test1 = rbind(test1, coefficients(lm(data = dat, formula = new.strength ~ TRAIT)))
         test2 = rbind(test2, coefficients(lm(data = dat, formula = new.eigen ~ TRAIT)))
         test3 = rbind(test3, coefficients(lm(data = dat, formula = new.degree ~ TRAIT)))
