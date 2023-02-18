@@ -82,7 +82,7 @@ data.stream.permutation <- function(obs.Bias, n.perm){
   d$ID = as.factor(d$ID)
   ds = perm.ds.grp(d, scan = 1, perm = n.perm, progress = F)
   ds = ds[-1]
-  
+
   ds = lapply(ds, function(x){
     colnames(x) = row.names(x) = as.numeric(colnames(x))
     x = x[order(as.numeric(colnames(x))), order(as.numeric(colnames(x)))]
@@ -218,11 +218,11 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
   ids$alters.Bias <- met.degree(Net.Biais)
   ids$alters.Bias.Corrected <- (ids$alters.Bias)/ obs.per.ind.Bias
   if(any(is.infinite(ids$alters.Bias.Corrected))){ids$alters.Bias.Corrected[which(is.infinite(ids$alters.Bias.Corrected))] = NA}
-  
+
   ids$eigen <- met.eigen(Net.Ori)
   ids$eigen.Bias <- ((met.eigen(Net.Biais)))
   ids$eigen.Bias.Corrected <- ((met.eigen(Net.Biais.corrected)))
-  
+
   ###### Data permutations ###############
   ############################################################################################################
   ######### Modification 5 (conceptual): Data stream permutation with and without GI
@@ -234,35 +234,35 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
     diag(r) = 0
     return(r)
   }, nobs= nobs)# With GI
-  
-  
+
+
   # Calculate degree distribution for each network
   deg_Perm <- lapply(networks_Perm,function(x) {
     r = rowSums(x)
     r
   })
   deg_Perm = do.call("rbind", deg_Perm)
-  
+
   eigen_Perm <- lapply(networks_Perm,function(x) {
     r <- met.eigen(x)
     r
   })
   eigen_Perm = do.call("rbind", eigen_Perm)
-  
+
   alters_Perm <- lapply(networks_Perm,function(x, obs.per.ind.Bias) {
     r <- met.degree(x)
     r
   }, obs.per.ind.Bias = obs.per.ind.Bias)
   alters_Perm = do.call("rbind", alters_Perm)
-  
+
   # Get coefficients for each randomisation without GI
   coefs_Perm <- apply(deg_Perm,1, function(x, SEX) { coefficients(lm(x~SEX))[2] }, SEX = ids$SEX)
-  
+
   coefs_eigen_Perm <-  apply(eigen_Perm,1,function(x, SEX) { coefficients(lm(x~SEX))[2] }, SEX = ids$SEX)
-  
+
   coefs_alters_Perm <- apply(alters_Perm,1,function(x, SEX) { coefficients(lm(x~SEX))[2] }, SEX = ids$SEX)
 
-  
+
   # Calculate degree distribution for each network with GI
   deg_Perm_Corrected <- lapply(networks_Perm2,function(x) {
     r = rowSums(x)
@@ -270,46 +270,46 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
     r
   })
   deg_Perm_Corrected = do.call("rbind", deg_Perm_Corrected)
-  
+
   eigen_Perm_Corrected <- lapply(networks_Perm2,function(x) {
     r <- met.eigen(x)
     if(any(is.infinite(r))){r[which(is.infinite(r))] = NA}
     r
   })
   eigen_Perm_Corrected = do.call("rbind", eigen_Perm_Corrected)
-  
+
   alters_Perm_Corrected <- lapply(networks_Perm2,function(x, obs.per.ind.Bias) {
     r <- met.degree(x)/obs.per.ind.Bias
     if(any(is.infinite(r))){r[which(is.infinite(r))] = NA}
     r
   }, obs.per.ind.Bias = obs.per.ind.Bias)
   alters_Perm_Corrected = do.call("rbind", alters_Perm_Corrected)
-  
+
   # Get coefficients for each randomisation
   coefs_Perm_Corrected <- apply(deg_Perm_Corrected,1,function(x, SEX) { coefficients(lm(x~SEX))[2] }, SEX = ids$SEX)
-  
+
   coefs_eigen_Perm_Corrected <- apply(eigen_Perm_Corrected,1,function(x, SEX) { coefficients(lm(x~SEX))[2] }, SEX = ids$SEX)
-  
+
   coefs_alters_Perm_Corrected <- apply(alters_Perm_Corrected,1,function(x, SEX) { coefficients(lm(x~SEX))[2] }, SEX = ids$SEX)
-  
-  
+
+
   ############################################################################################################
   ######### Modification  5 : Node label with and without GI & double permutations with and without GI
-  
+
   ids$degree.dp <- ids$DEGREE.Bias - apply(deg_Perm,2,median)
   ids$eigen.dp <- ids$eigen.Bias - apply(eigen_Perm,2,median)
   ids$alter.dp <- ids$alters.Bias - apply(alters_Perm,2,median)
-  
+
   ids$degree.dp.Corrected <- ids$DEGREE.Bias.Corrected - apply(deg_Perm_Corrected,2,median)
   ids$eigen.dp.Corrected <- ids$eigen.Bias.Corrected - apply(deg_Perm_Corrected,2,median)
   ids$alter.dp.Corrected <- ids$alters.Bias.Corrected - apply(alters_Perm_Corrected,2,median)
-  
+
   coefs.Perm_Nodes = coefs.eigen.Perm_Nodes = coefs.alters.Perm_Nodes = NULL
   coefs.Perm_Nodes_Corrected  = coefs.eigen.Perm_Nodes_Corrected  = coefs.alters.Perm_Nodes_Corrected  = NULL
-  
+
   coefs.Perm_Nodes_dp = coefs.eigen.Perm_Nodes_dp = coefs.alters.Perm_Nodes_dp = NULL
   coefs.Perm_Nodes_dp_Corrected  = coefs.eigen.Perm_Nodes_dp_Corrected  = coefs.alters.Perm_Nodes_dp_Corrected  = NULL
-  
+
   for(d in 1:N.Perm){
     # Node label
     coefs.Perm_Nodes[d] = summary(lm(data = ids, formula = DEGREE.Bias ~ sample(SEX)))$coefficients[2,1]
@@ -322,87 +322,87 @@ Simulation<-function(GS,ObsBias,FemSexRatio,FemPhenotypeBias,nfocals,N.Perm)
     coefs.Perm_Nodes_Corrected[d] = summary(lm(data = ids, formula = DEGREE.Bias.Corrected ~ sample(SEX)))$coefficients[2,1]
     coefs.eigen.Perm_Nodes_Corrected[d] = summary(lm(data = ids, formula = eigen.Bias.Corrected ~ sample(SEX)))$coefficients[2,1]
     coefs.alters.Perm_Nodes_Corrected[d] = summary(lm(data = ids, formula = alters.Bias.Corrected ~ sample(SEX)))$coefficients[2,1]
-    
+
     # Double permutation
     coefs.Perm_Nodes_dp[d] = summary(lm(data = ids, formula = degree.dp ~ sample(SEX)))$coefficients[2,1]
     coefs.eigen.Perm_Nodes_dp[d] = summary(lm(data = ids, formula = eigen.dp ~ sample(SEX)))$coefficients[2,1]
     coefs.alters.Perm_Nodes_dp[d] = summary(lm(data = ids, formula = alter.dp ~ sample(SEX)))$coefficients[2,1]
-    
+
     coefs.Perm_Nodes_dp_Corrected[d] = summary(lm(data = ids, formula = degree.dp.Corrected ~ sample(SEX)))$coefficients[2,1]
     coefs.eigen.Perm_Nodes_dp_Corrected[d] = summary(lm(data = ids, formula = eigen.dp.Corrected ~ sample(SEX)))$coefficients[2,1]
     coefs.alters.Perm_Nodes_dp_Corrected[d] = summary(lm(data = ids, formula = alter.dp.Corrected ~ sample(SEX)))$coefficients[2,1]
   }
-  
+
   coef.Ori <- coefficients(lm(DEGREE~SEX,data=ids))[2]
   coef.Bias <- coefficients(lm(DEGREE.Bias~SEX,data=ids))[2]
   coef.Bias.Corrected  <- coefficients(lm(DEGREE.Bias.Corrected~SEX,data=ids))[2]
-  
+
   print(summary(lm(DEGREE.Bias.Corrected~SEX,data=ids)))
   cat("Amount of bias: ", ObsBias, "\n")
-  
+
   coef.eigen.Bias <- coefficients(lm(eigen.Bias~SEX,data=ids))[2]
   coef.eigen.Bias.Corrected <- coefficients(lm(eigen.Bias.Corrected~SEX,data=ids))[2]
-  
+
   coef.alters.Bias  <- coefficients(lm(alters.Bias~SEX,data=ids))[2]
   coef.alters.Bias.Corrected  <- coefficients(lm(alters.Bias.Corrected~SEX,data=ids))[2]
-  
+
   ############################################################################################################
   ######### Modification  6 : One-tailed parametric test
   s.degree = summary(lm(DEGREE.Bias~SEX,data=ids))
   s.eigen = summary(lm(eigen.Bias~SEX,data=ids))
-  
+
   if(length(unique(ids$alters.Bias)) != 1){## Without correction everyone have same number of partners
     s.alters = summary(lm(alters.Bias~SEX,data=ids))
     p.alters = pt(coef(s.alters)[,3], s.alters$df[2], lower = T)[2]
   }else{
     p.alters = NA
   }
-  
+
   p.degree = pt(coef(s.degree)[,3], s.degree$df[2], lower = T)[2]
   p.eigen = pt(coef(s.eigen)[,3], s.eigen$df[2], lower = T)[2]
-  
-  
+
+
   s.degree.Corrected  = summary(lm(DEGREE.Bias.Corrected~SEX,data=ids))
   s.eigen.Corrected  = summary(lm(eigen.Bias.Corrected~SEX,data=ids))
   s.alters.Corrected  = summary(lm(alters.Bias.Corrected~SEX,data=ids))
-  
+
   p.degree.Corrected = pt(coef(s.degree.Corrected)[,3], s.degree.Corrected$df[2], lower = T)[2]
   p.eigen.Corrected = pt(coef(s.eigen.Corrected)[,3], s.eigen.Corrected$df[2], lower = T)[2]
   p.alters.Corrected = pt(coef(s.alters.Corrected)[,3], s.alters.Corrected$df[2], lower = T)[2]
-  
+
   ############################################################################################################
   ######### Modification  7 : Returning only p-values
   Result <- data.frame("Strength pre-network" = sum(coef.Bias>coefs_Perm) / n.perm,
                        "Strength network" = sum(coef.Bias>coefs.Perm_Nodes) / n.perm,
                        "Strength double" = sum(coef.Bias>coefs.Perm_Nodes_dp) / n.perm,
                        "Strength parametric" = p.degree,
-                       
+
                        "Eigen pre-network" = sum(coef.eigen.Bias>coefs_eigen_Perm) / n.perm,
                        "Eigen network" = sum(coef.eigen.Bias>coefs.eigen.Perm_Nodes) / n.perm,
-                       "Eigen double" = sum(coef.Bias>coefs.Perm_Nodes_dp) / n.perm,
+                       "Eigen double" = sum(coef.eigen.Bias>coefs.Perm_Nodes_dp) / n.perm,
                        "Eigen parametric" = p.eigen,
-                       
+
                        "Alters pre-network" = sum(coef.alters.Bias>coefs_alters_Perm) / n.perm,
                        "Alters network" = sum(coef.alters.Bias>coefs.alters.Perm_Nodes) / n.perm,
-                       "Alters double" = sum(coef.Bias>coefs.alters.Perm_Nodes_dp) / n.perm,
+                       "Alters double" = sum(coef.alters.Bias>coefs.alters.Perm_Nodes_dp) / n.perm,
                        "Alters parametric" = p.alters,
-                       
+
                        "Strength pre-network corrected" = sum(coef.Bias.Corrected>coefs_Perm_Corrected) / n.perm,
                        "Strength network corrected" = sum(coef.Bias.Corrected>coefs.Perm_Nodes_Corrected) / n.perm,
-                       "Strength double corrected" = sum(coef.Bias>coefs.Perm_Nodes_dp_Corrected) / n.perm,
+                       "Strength double corrected" = sum(coef.Bias.Corrected>coefs.Perm_Nodes_dp_Corrected) / n.perm,
                        "Strength parametric corrected" = p.degree.Corrected,
-                       
+
                        "Eigen pre-network corrected" = sum(coef.eigen.Bias.Corrected>coefs_eigen_Perm_Corrected) / n.perm,
                        "Eigen network corrected" = sum(coef.eigen.Bias.Corrected>coefs.eigen.Perm_Nodes_Corrected) / n.perm,
-                       "Eigen double corrected" = sum(coef.Bias>coefs.eigen.Perm_Nodes_dp_Corrected) / n.perm,
+                       "Eigen double corrected" = sum(coef.eigen.Bias.Corrected>coefs.eigen.Perm_Nodes_dp_Corrected) / n.perm,
                        "Eigen parametric corrected" = p.eigen.Corrected,
-                       
+
                        "Alters pre-network corrected" = sum(coef.alters.Bias.Corrected>coefs_alters_Perm_Corrected) / n.perm,
                        "Alters network corrected" = sum(coef.alters.Bias.Corrected>coefs.alters.Perm_Nodes_Corrected) / n.perm,
-                       "Alters double corrected" = sum(coef.Bias>coefs.alters.Perm_Nodes_dp_Corrected) / n.perm,
+                       "Alters double corrected" = sum(coef.alters.Bias.Corrected>coefs.alters.Perm_Nodes_dp_Corrected) / n.perm,
                        "Alters parametric corrected" = p.alters.Corrected
   )
-  
+
   Result
 }
 
@@ -459,19 +459,19 @@ for (a in 1:length(FemPhenotypeBias))
       cat("Pre-network permutation true positive rates for strength: ", sum(R[R$FemPhenotypeBias == T,]$Strength.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for strength: ", sum(R[R$FemPhenotypeBias == T,]$Strength.double <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true positive rates for eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for  eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.double <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true positive rates for alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates for alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for  alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.double <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("#################################################################################", '\n')
       cat("With GI", '\n')
       cat("Parametric true positive rates for strength: ", sum(R[R$FemPhenotypeBias == T,]$Strength.parametric.corrected<0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
@@ -479,52 +479,52 @@ for (a in 1:length(FemPhenotypeBias))
       cat("Pre-network permutation true positive rates for  strength: ", sum(R[R$FemPhenotypeBias == T,]$Strength.pre.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for  strength: ", sum(R[R$FemPhenotypeBias == T,]$Strength.double.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true positive rates for  eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.parametric.corrected<0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for  eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates  eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.pre.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for   eigenvector: ", sum(R[R$FemPhenotypeBias == T,]$Eigen.double.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true positive rates for  alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.parametric.corrected<0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for  alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates for  alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.pre.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for   alters: ", sum(R[R$FemPhenotypeBias == T,]$Alters.double.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
-      
+
+
       cat("#################################################################################", '\n')
       cat("Parametric true negatives rates for non GI strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for non GI strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates for non GI strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for non GI strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.double <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true negatives rates for non GI eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for non GI eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates non GI eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for  non GI eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.double <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true negatives rates for non GI alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.parametric<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for non GI alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates for non GI alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.pre.network <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for  non GI alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.double <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("#################################################################################", '\n')
       cat("Parametric true negatives rates for GI strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.parametric.corrected<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for GI strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates for GI strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.pre.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for GI strength: ", sum(R[R$FemPhenotypeBias == F,]$Strength.double.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true negatives rates for GI eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.parametric.corrected<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for GI eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates GI eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.pre.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for  GI eigenvector: ", sum(R[R$FemPhenotypeBias == F,]$Eigen.double.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true negatives rates for GI alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.parametric.corrected<0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for GI alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates for GI alters: ", sum(R[R$FemPhenotypeBias == F,]$Alters.pre.network.corrected <0.05)*100/nrow(R[R$FemPhenotypeBias == F,]), "\n")
@@ -566,70 +566,70 @@ for (a in 1:length(FemPhenotypeBias))
       cat("Pre-network permutation true positive rates for non GI strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for non GI strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.double <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true positive rates for non GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for non GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates non GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for  non GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.double <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true positive rates for non GI alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for non GI alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates for non GI alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for  non GI alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.double <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("#################################################################################", '\n')
       cat("Parametric true positive rates for GI strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.parametric.corrected<0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for GI strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates for GI strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.pre.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for GI strength: ", sum(R2[R2$FemPhenotypeBias == T,]$Strength.double.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true positive rates for GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.parametric.corrected<0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.pre.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for  GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == T,]$Eigen.double.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true positive rates for GI alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.parametric.corrected<0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Network permutation true positive rates for GI alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Pre-network permutation true positive rates for GI alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.pre.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat("Double permutation true positive rates for  GI alters: ", sum(R2[R2$FemPhenotypeBias == T,]$Alters.double.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == T,]), "\n")
       cat('\n')
-      
+
       cat("#################################################################################", '\n')
       cat("Parametric true negatives rates for non GI strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for non GI strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates for non GI strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for non GI strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.double <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true negatives rates for non GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for non GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates non GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for  non GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.double <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true negatives rates for non GI alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.parametric<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for non GI alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates for non GI alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.pre.network <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for  non GI alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.double <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("#################################################################################", '\n')
       cat("Parametric true negatives rates for GI strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.parametric.corrected<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for GI strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates for GI strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.pre.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for GI strength: ", sum(R2[R2$FemPhenotypeBias == F,]$Strength.double.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true negatives rates for GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.parametric.corrected<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.pre.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Double permutation true negatives rates for  GI eigenvector: ", sum(R2[R2$FemPhenotypeBias == F,]$Eigen.double.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat('\n')
-      
+
       cat("Parametric true negatives rates for GI alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.parametric.corrected<0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Network permutation true negatives rates for GI alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
       cat("Pre-network permutation true negatives rates for GI alters: ", sum(R2[R2$FemPhenotypeBias == F,]$Alters.pre.network.corrected <0.05)*100/nrow(R2[R2$FemPhenotypeBias == F,]), "\n")
